@@ -147,7 +147,7 @@ void SimpleRender::InitVulkan(const char** a_instanceExtensions, uint32_t a_inst
 
   LoaderConfig conf = {};
   conf.load_geometry = true;
-  conf.load_materials = MATERIAL_LOAD_MODE::MATERIALS_ONLY;
+  conf.load_materials = MATERIAL_LOAD_MODE::MATERIALS_AND_TEXTURES;
   conf.instance_matrix_as_storage_buffer = true;
   if(ENABLE_HARDWARE_RT)
   {

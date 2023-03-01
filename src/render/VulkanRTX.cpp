@@ -27,6 +27,22 @@ VulkanRTX::VulkanRTX(std::shared_ptr<SceneManager> a_pScnMgr) : m_pScnMgr(a_pScn
 {
 }
 
+VulkanRTX::VulkanRTX(VkDevice a_device, VkPhysicalDevice a_physDevice, uint32_t a_graphicsQId, std::shared_ptr<vk_utils::ICopyEngine> a_pCopyHelper,
+                     uint32_t a_maxMeshes, uint32_t a_maxTotalVertices, uint32_t a_maxTotalPrimitives, uint32_t a_maxPrimitivesPerMesh,
+                     bool build_as_add)
+{
+  LoaderConfig conf = {};
+  conf.load_geometry = true;
+  conf.load_materials = MATERIAL_LOAD_MODE::MATERIALS_AND_TEXTURES;
+  conf.build_acc_structs = true;
+  conf.build_acc_structs_while_loading_scene = build_as_add;
+  conf.builder_type = BVH_BUILDER_TYPE::RTX;
+
+  m_pScnMgr = std::make_shared<SceneManager>(a_device, a_physDevice, a_graphicsQId, a_pCopyHelper, conf);
+  m_pScnMgr->InitEmptyScene(a_maxMeshes, a_maxTotalVertices, a_maxTotalPrimitives, a_maxPrimitivesPerMesh);
+}
+
+
 VulkanRTX::~VulkanRTX()
 {
   m_pScnMgr = nullptr;

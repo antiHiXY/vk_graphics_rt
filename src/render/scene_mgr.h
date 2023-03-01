@@ -48,7 +48,7 @@ enum class MATERIAL_LOAD_MODE
 struct LoaderConfig
 {
   bool load_geometry = true;
-  MATERIAL_LOAD_MODE load_materials = MATERIAL_LOAD_MODE::NONE;
+  MATERIAL_LOAD_MODE load_materials = MATERIAL_LOAD_MODE::MATERIALS_AND_TEXTURES;
   bool build_acc_structs = false;
   bool build_acc_structs_while_loading_scene = false;
   bool instance_matrix_as_vertex_attribute = false;
@@ -112,7 +112,7 @@ struct SceneManager
   void BuildTLAS();
 
 private:
-  const std::string missingTextureImgPath = "../resources/data/missing_texture.png";
+  const std::string missingTextureImgPath = "../casual_effects/missing_texture.png";
 
   vk_utils::VulkanImageMem LoadSpecialTexture();
   void InitGeoBuffersGPU(uint32_t a_meshNum, uint32_t a_totalVertNum, uint32_t a_totalIndicesNum);

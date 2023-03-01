@@ -27,7 +27,7 @@ int main()
 {
   constexpr int WIDTH = 1024;
   constexpr int HEIGHT = 1024;
-  constexpr int VULKAN_DEVICE_ID = 0;
+  constexpr int VULKAN_DEVICE_ID = 1;
 
   std::shared_ptr<IRender> app = std::make_shared<SimpleRender>(WIDTH, HEIGHT);
 
@@ -41,9 +41,8 @@ int main()
 
   initVulkanGLFW(app, window, VULKAN_DEVICE_ID);
 
-  //app->LoadScene("../resources/scenes/043_cornell_normals/statex_00001.xml");
-  app->LoadScene("../resources/scenes/buggy/Buggy.gltf");
-  //app->LoadScene("../resources/scenes/box/Box.gltf");
+//  app->LoadScene("../resources/scenes/043_cornell_normals/statex_00001.xml");
+  app->LoadScene("../casual_effects/crytek_sponza/statex_00001.xml");
 
   bool showGUI = true;
   mainLoop(app, window, showGUI);
