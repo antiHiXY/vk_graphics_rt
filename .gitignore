@@ -4,3 +4,4 @@ external/imgui
 external/vkutils
 external/volk
 casual_effects
+.vscode
