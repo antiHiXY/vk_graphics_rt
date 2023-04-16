@@ -30,7 +30,7 @@ class RayTracer_GPU : public RayTracer_Generated
 public:
   RayTracer_GPU(int32_t a_width, uint32_t a_height) : RayTracer_Generated(a_width, a_height) {} 
   std::string AlterShaderPath(const char* a_shaderPath) override { return std::string("../src/samples/raytracing/") + std::string(a_shaderPath); }
-  void InitDescriptors(std::shared_ptr<SceneManager> sceneManager);
+  void InitDescriptors(std::shared_ptr<SceneManager> sceneManager, VkBuffer a_coordsOfPointsBuffer);
 };
 
 class SimpleRender : public IRender
@@ -156,7 +156,9 @@ protected:
   void RayTraceGPU();
 
   VkBuffer m_genColorBuffer = VK_NULL_HANDLE;
+  VkBuffer m_coordsOfPointsBuffer = VK_NULL_HANDLE;
   VkDeviceMemory m_colorMem = VK_NULL_HANDLE;
+  VkDeviceMemory m_coordsOfPointsMem = VK_NULL_HANDLE;
   //
 
   // *** presentation

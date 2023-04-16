@@ -14,6 +14,7 @@ layout(binding = 5, set = 0) buffer MatIds { uint mat_ids[]; };
 layout(binding = 6, set = 0) buffer Materials { MaterialData_pbrMR materials[]; };
 layout(binding = 7, set = 0) buffer InstanceMats { mat4 instance_mats[]; };
 layout(binding = 8, set = 0) buffer MeshInfos { MeshInfo mesh_infos[]; };
+layout(binding = 9, set = 0) buffer debugPoints {float coordsOfPoints[];};
 
 uint ColorToInt(vec4 color) 
 {
@@ -202,62 +203,116 @@ vec4 CookTorrance (CRT_Hit hit, vec3 lightDir)
   return vec4 ( pow ( diff * base, vec3 ( 1.0 / gamma ) ), 1.0 );
 }
 
+//------------------------------------------------------------------------------------------
+// Hammersley Sampling
+//------------------------------------------------------------------------------------------
+#define PI 3.14159265359
+
+vec2 Hammersley(float i, float numSamples)
+{   
+    uint b = uint(i);
+    
+    b = (b << 16u) | (b >> 16u);
+    b = ((b & 0x55555555u) << 1u) | ((b & 0xAAAAAAAAu) >> 1u);
+    b = ((b & 0x33333333u) << 2u) | ((b & 0xCCCCCCCCu) >> 2u);
+    b = ((b & 0x0F0F0F0Fu) << 4u) | ((b & 0xF0F0F0F0u) >> 4u);
+    b = ((b & 0x00FF00FFu) << 8u) | ((b & 0xFF00FF00u) >> 8u);
+    
+    float radicalInverseVDC = float(b) * 2.3283064365386963e-10;
+    
+    return vec2((i / numSamples), radicalInverseVDC);
+} 
+
+vec3 SampleHemisphere_Uniform(float i, float numSamples)
+{
+    // Returns a 3D sample vector orientated around (0.0, 1.0, 0.0)
+    // For practical use, must rotate with a rotation matrix (or whatever
+    // your preferred approach is) for use with normals, etc.
+    
+	vec2 xi = Hammersley(i, numSamples);
+    
+    float phi      = xi.y * 2.0 * PI;
+    float cosTheta = 1.0 - xi.x;
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+    
+    return vec3(cos(phi) * sinTheta, cosTheta, sin(phi) * sinTheta);
+}
+
+vec3 SampleHemisphere_Cosinus(float i, float numSamples)
+{
+    vec2 xi = Hammersley(i, numSamples);
+    
+    float phi      = xi.y * 2.0 * PI;
+    float cosTheta = sqrt(1.0 - xi.x);
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+     
+    return vec3(cos(phi) * sinTheta, cosTheta, sin(phi) * sinTheta);
+}
+
 ///////////////////////////////////////////////////////////////// subkernels here
 void kernel_RayTrace_out_color(uint tidX, uint tidY, in vec4 rayPosAndNear, in vec4 rayDirAndFar, uint out_colorOffset) 
 {
   vec4 rayPos = rayPosAndNear;
   vec4 rayDir = rayDirAndFar;
   vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.0f);
-  
+  CRT_Hit hit = m_pAccelStruct_RayQuery_NearestHit(rayPos, rayDir);
+  CRT_Hit hitLight;
 
   for (int j = 0; j < 1; ++j)
   {
-    CRT_Hit hit = m_pAccelStruct_RayQuery_NearestHit(rayPos, rayDir);
+    //CRT_Hit hit = m_pAccelStruct_RayQuery_NearestHit(rayPos, rayDir);
     if (hit.primId == -1) {
       break;
     }
     
     vec3 hit_point = vec3(rayPos) + vec3(rayDir)*hit.t;
     vec3 n = GetNormal(hit);
-    if(soft_shadow)
+    vec3 lightPos = m_lights[j].pos.xyz;
+    vec3 lightDir = normalize(lightPos - hit_point);
+
+    //vec3 offset = vec3(0.4,0.5,0);
+    //vec3 offset_2 = vec3(0.8,0.1,0.2);
+    //vec4 shade = vec4(1, 1, 1, 1);
+    // color = Shade({hit_point, 1.0}, {lightPos, 1.0}, n, color, 100);
+    
+    hitLight = m_pAccelStruct_RayQuery_NearestHit(vec4(hit_point, 1.0f), vec4(lightDir, MAXFLOAT));
+    if (hitLight.primId != -1)
     {
-      float total = 0.0f;
-      for (int u = 0; u < samples_cnt; u++)
-      {   
-        uint rngState = uint(hit.t) * uint(rayPos.y) * uint(rayPos.z) * gl_GlobalInvocationID[1] * tidY + tidX;
-        float distanceToCenter = length(m_lights[j].pos.xyz - hit_point);
-        float q = sqrt(1.0f - (light_rad / distanceToCenter) * (light_rad / distanceToCenter));
-
-        vec3 lightPos = PointOnLight(m_lights[j],rngState);
-        //debugPrintfEXT("My lightPos is %1.2v4f \n", lightPos);
-        vec3 lightDir = normalize(lightPos - hit_point);
-
-        CRT_Hit hitLight = m_pAccelStruct_RayQuery_NearestHit(vec4(hit_point, 1.0f), vec4(lightDir, MAXFLOAT));
-        if (hitLight.primId == -1)
-        {
-          total += 1.0f;
-          float shade = max(dot(n, normalize(lightDir)), 0.1f);
-          //float pdf_xp = 1.0f / (2*M_PI * (1.0f - q));
-          //color += shade * (1.0f / pdf_xp) * m_lights[j].intensity;
-          color += shade;
-        }
-      }
-      color*=(total / samples_cnt);
+      float shade = max(dot(n, normalize(lightDir)), 0.1f);
+      color += shade;
     }
-    else
+    out_color[tidY * ubo.m_width + tidX + out_colorOffset] = ColorToInt(color);
+    int numPoints = 5;
+    if ((ubo.m_width / 2 == tidX) && (ubo.m_height / 2 == tidY))
     {
-      vec3 lightPos = m_lights[j].pos.xyz;
-      vec3 lightDir = normalize(lightPos - hit_point);
-
-      CRT_Hit hitLight = m_pAccelStruct_RayQuery_NearestHit(vec4(hit_point, 1.0f), vec4(lightDir, MAXFLOAT));
-      if (hitLight.primId == -1)
+      out_color[tidY * ubo.m_width + tidX + out_colorOffset] = ColorToInt(vec4(1.0, 0.0, 0.0, 1.0));
+      //vec4 firstHitWorld = GetPos(hitLight);
+      vec4 firstHitWorld = vec4(hit_point.xyz + lightDir*hitLight.t,1);
+      coordsOfPoints[0] = firstHitWorld.x;
+      coordsOfPoints[1] = firstHitWorld.y;
+      coordsOfPoints[2] = firstHitWorld.z;
+      debugPrintfEXT("index_0 is %f", coordsOfPoints[0]);
+      debugPrintfEXT("index_1 is %f", coordsOfPoints[1]);
+      debugPrintfEXT("index_2 is %f", coordsOfPoints[2]);
+      for (int i = 0; i < numPoints; ++i) 
       {
-        float shade = max(dot(n, normalize(lightDir)), 0.1f);
-        color += shade;
+        vec4 randDir = vec4(SampleHemisphere_Cosinus(float(i), float(numPoints)), MAXFLOAT);
+        debugPrintfEXT("randDir %1.2v4f", randDir);
+        CRT_Hit secondHit = m_pAccelStruct_RayQuery_NearestHit(firstHitWorld, randDir);
+        //vec4 secondHitWorld = GetPos(secondHit);
+        vec4 secondHitWorld = vec4(firstHitWorld.xyz + randDir.xyz*secondHit.t, 1);
+        debugPrintfEXT("secondHitWorld %1.2v4f", secondHitWorld);
+        coordsOfPoints[i * 3 + 3] = secondHitWorld.x;
+        debugPrintfEXT("index is %f", coordsOfPoints[i * 3 + 3]);
+
+        coordsOfPoints[i * 3 + 4] = secondHitWorld.y;
+        debugPrintfEXT("index is %f", coordsOfPoints[i * 3 + 4]);
+
+        coordsOfPoints[i * 3 + 5] = secondHitWorld.z;
+        debugPrintfEXT("index is %f", coordsOfPoints[i * 3 + 5]);
       }
-    } 
+    }
   }
-  out_color[tidY * ubo.m_width + tidX + out_colorOffset] = ColorToInt(color);
 }
 
 void kernel_InitEyeRay(uint tidX, uint tidY, inout vec4 rayPosAndNear, inout vec4 rayDirAndFar) 

@@ -24,10 +24,10 @@ void fillWriteDescriptorSetEntry(VkDescriptorSet set, VkWriteDescriptorSet& writ
   writeDS.pTexelBufferView = nullptr;
 }
 
-void RayTracer_GPU::InitDescriptors(std::shared_ptr<SceneManager> sceneManager) 
+void RayTracer_GPU::InitDescriptors(std::shared_ptr<SceneManager> sceneManager, VkBuffer a_coordsOfPointsBuffer) 
 {
-  std::array<VkDescriptorBufferInfo, 6> descriptorBufferInfo;
-  std::array<VkWriteDescriptorSet, 6> writeDescriptorSet;
+  std::array<VkDescriptorBufferInfo, 7> descriptorBufferInfo;
+  std::array<VkWriteDescriptorSet, 7> writeDescriptorSet;
 
   fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[0], &descriptorBufferInfo[0], sceneManager->GetVertexBuffer(), 3);
   fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[1], &descriptorBufferInfo[1], sceneManager->GetIndexBuffer(), 4);
@@ -35,6 +35,7 @@ void RayTracer_GPU::InitDescriptors(std::shared_ptr<SceneManager> sceneManager)
   fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[3], &descriptorBufferInfo[3], sceneManager->GetMaterialsBuffer(), 6);
   fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[4], &descriptorBufferInfo[4], sceneManager->GetInstanceMatBuffer(), 7);
   fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[5], &descriptorBufferInfo[5], sceneManager->GetMeshInfoBuffer(), 8);
+  fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[6], &descriptorBufferInfo[6], a_coordsOfPointsBuffer, 9);
 
   vkUpdateDescriptorSets(device, uint32_t(writeDescriptorSet.size()), writeDescriptorSet.data(), 0, NULL);
 }
@@ -276,7 +277,7 @@ void SimpleRender::CreateUniformBuffer()
 
   vkMapMemory(m_device, m_uboAlloc, 0, sizeof(m_uniforms), 0, &m_uboMappedMem);
 
-  m_uniforms.lightPos  = LiteMath::float4(0.0f, 1.0f,  1.0f, 1.0f);
+  m_uniforms.lightPos  = LiteMath::float4(0.0f, 5.0f,  0.0f, 1.0f);
   m_uniforms.baseColor = LiteMath::float4(0.9f, 0.92f, 1.0f, 0.0f);
   m_uniforms.animateLightColor = true;
 
