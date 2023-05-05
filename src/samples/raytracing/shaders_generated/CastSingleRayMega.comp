@@ -291,25 +291,25 @@ void kernel_RayTrace_out_color(uint tidX, uint tidY, in vec4 rayPosAndNear, in v
       coordsOfPoints[0] = firstHitWorld.x;
       coordsOfPoints[1] = firstHitWorld.y;
       coordsOfPoints[2] = firstHitWorld.z;
-      debugPrintfEXT("index_0 is %f", coordsOfPoints[0]);
-      debugPrintfEXT("index_1 is %f", coordsOfPoints[1]);
-      debugPrintfEXT("index_2 is %f", coordsOfPoints[2]);
+      //debugPrintfEXT("index_0 is %f", coordsOfPoints[0]);
+      //debugPrintfEXT("index_1 is %f", coordsOfPoints[1]);
+      //debugPrintfEXT("index_2 is %f", coordsOfPoints[2]);
       for (int i = 0; i < numPoints; ++i) 
       {
         vec4 randDir = vec4(SampleHemisphere_Cosinus(float(i), float(numPoints)), MAXFLOAT);
-        debugPrintfEXT("randDir %1.2v4f", randDir);
+        //debugPrintfEXT("randDir %1.2v4f", randDir);
         CRT_Hit secondHit = m_pAccelStruct_RayQuery_NearestHit(firstHitWorld, randDir);
         //vec4 secondHitWorld = GetPos(secondHit);
         vec4 secondHitWorld = vec4(firstHitWorld.xyz + randDir.xyz*secondHit.t, 1);
-        debugPrintfEXT("secondHitWorld %1.2v4f", secondHitWorld);
+        //debugPrintfEXT("secondHitWorld %1.2v4f", secondHitWorld);
         coordsOfPoints[i * 3 + 3] = secondHitWorld.x;
-        debugPrintfEXT("index is %f", coordsOfPoints[i * 3 + 3]);
+        //debugPrintfEXT("index is %f", coordsOfPoints[i * 3 + 3]);
 
         coordsOfPoints[i * 3 + 4] = secondHitWorld.y;
-        debugPrintfEXT("index is %f", coordsOfPoints[i * 3 + 4]);
+        //debugPrintfEXT("index is %f", coordsOfPoints[i * 3 + 4]);
 
         coordsOfPoints[i * 3 + 5] = secondHitWorld.z;
-        debugPrintfEXT("index is %f", coordsOfPoints[i * 3 + 5]);
+        //debugPrintfEXT("index is %f", coordsOfPoints[i * 3 + 5]);
       }
     }
   }

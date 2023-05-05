@@ -24,7 +24,7 @@ void fillWriteDescriptorSetEntry(VkDescriptorSet set, VkWriteDescriptorSet& writ
   writeDS.pTexelBufferView = nullptr;
 }
 
-void RayTracer_GPU::InitDescriptors(std::shared_ptr<SceneManager> sceneManager, VkBuffer a_coordsOfPointsBuffer) 
+void RayTracer_GPU::InitDescriptors(std::shared_ptr<SceneManager> sceneManager) 
 {
   std::array<VkDescriptorBufferInfo, 7> descriptorBufferInfo;
   std::array<VkWriteDescriptorSet, 7> writeDescriptorSet;
@@ -35,7 +35,7 @@ void RayTracer_GPU::InitDescriptors(std::shared_ptr<SceneManager> sceneManager, 
   fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[3], &descriptorBufferInfo[3], sceneManager->GetMaterialsBuffer(), 6);
   fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[4], &descriptorBufferInfo[4], sceneManager->GetInstanceMatBuffer(), 7);
   fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[5], &descriptorBufferInfo[5], sceneManager->GetMeshInfoBuffer(), 8);
-  fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[6], &descriptorBufferInfo[6], a_coordsOfPointsBuffer, 9);
+  fillWriteDescriptorSetEntry(m_allGeneratedDS[0], writeDescriptorSet[6], &descriptorBufferInfo[6], sceneManager->GetPointsBuffer(), 9);
 
   vkUpdateDescriptorSets(device, uint32_t(writeDescriptorSet.size()), writeDescriptorSet.data(), 0, NULL);
 }
@@ -175,7 +175,13 @@ void SimpleRender::InitPresentation(VkSurfaceKHR &a_surface)
   semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
   VK_CHECK_RESULT(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_presentationResources.imageAvailable));
   VK_CHECK_RESULT(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_presentationResources.renderingFinished));
-  m_screenRenderPass = vk_utils::createDefaultRenderPass(m_device, m_swapchain.GetFormat());
+  m_screenRenderPass = vk_utils::createDefaultRenderPass(m_device, m_swapchain.GetFormat(), VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL);
+  m_pointsRenderPass = vk_utils::createRenderPass(m_device, {.size = {},
+                                                             .format = m_swapchain.GetFormat(),
+                                                             .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD, 
+                                                             .initialLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                                                             .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                                                            });
 
   std::vector<VkFormat> depthFormats = {
       VK_FORMAT_D32_SFLOAT,
@@ -187,6 +193,7 @@ void SimpleRender::InitPresentation(VkSurfaceKHR &a_surface)
   vk_utils::getSupportedDepthFormat(m_physicalDevice, depthFormats, &m_depthBuffer.format);
   m_depthBuffer  = vk_utils::createDepthTexture(m_device, m_physicalDevice, m_width, m_height, m_depthBuffer.format);
   m_frameBuffers = vk_utils::createFrameBuffers(m_device, m_swapchain, m_screenRenderPass, m_depthBuffer.view);
+  m_pointsFrameBuffer = vk_utils::createFrameBuffers(m_device, m_swapchain, m_pointsRenderPass);
 
   m_pGUIRender = std::make_shared<ImGuiRender>(m_instance, m_device, m_physicalDevice, m_queueFamilyIDXs.graphics, m_graphicsQueue, m_swapchain);
 
@@ -258,6 +265,66 @@ void SimpleRender::SetupSimplePipeline()
                                                        m_screenRenderPass, {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR});
 }
 
+void SimpleRender::SetupPointsPipeline()
+{
+  m_pBindings->BindBegin(VK_SHADER_STAGE_FRAGMENT_BIT);
+  m_pBindings->BindBuffer(0, m_ubo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+  m_pBindings->BindBuffer(1, m_pScnMgr->GetPointsBuffer(), VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_pBindings->BindEnd(&m_dSetPoints, &m_dSetPointsLayout);
+
+  if(m_pointsPipeline.layout != VK_NULL_HANDLE)
+  {
+    vkDestroyPipelineLayout(m_device, m_pointsPipeline.layout, nullptr);
+    m_pointsPipeline.layout = VK_NULL_HANDLE;
+  }
+  if(m_pointsPipeline.pipeline != VK_NULL_HANDLE)
+  {
+    vkDestroyPipeline(m_device, m_pointsPipeline.pipeline, nullptr);
+    m_pointsPipeline.pipeline = VK_NULL_HANDLE;
+  }
+
+  vk_utils::GraphicsPipelineMaker maker;
+  std::unordered_map<VkShaderStageFlagBits, std::string> shader_paths;
+  shader_paths[VK_SHADER_STAGE_FRAGMENT_BIT] = "../resources/shaders/points.frag.spv";
+  shader_paths[VK_SHADER_STAGE_VERTEX_BIT]   = "../resources/shaders/points.vert.spv";
+  maker.LoadShaders(m_device, shader_paths);
+  maker.SetDefaultState(m_width, m_height);
+
+  m_pointsPipeline.layout = maker.MakeLayout(m_device, {m_dSetPointsLayout}, sizeof(pushConst2M));
+
+  // struct vertex 
+  // {
+  //   float pos[3];      // (pos_x, pos_y, pos_z)
+  // };
+
+  // std::vector<vertex> vertices;
+  // std::vector<uint32_t> indices;
+
+  // VkVertexInputBindingDescription   m_inputBinding {};
+  // VkVertexInputAttributeDescription m_inputAttributes {};
+
+  // m_inputBinding.binding = 0;
+  // m_inputBinding.stride    = sizeof(vertex);
+  // m_inputBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  // m_inputAttributes.binding  = 0;
+  // m_inputAttributes.location = 0;
+  // m_inputAttributes.format   = VK_FORMAT_R32G32B32A32_SFLOAT;
+  // m_inputAttributes.offset   = 0;
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+  vertexInputInfo.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  vertexInputInfo.vertexBindingDescriptionCount   = 0;
+  vertexInputInfo.vertexAttributeDescriptionCount = 0;
+  vertexInputInfo.pVertexBindingDescriptions      = nullptr;
+  vertexInputInfo.pVertexAttributeDescriptions    = nullptr;
+
+  ////have to fill buffer of vertices by compute buffer
+
+  m_pointsPipeline.pipeline = maker.MakePipeline(m_device, vertexInputInfo, 
+                                                 m_pointsRenderPass, {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR}, vk_utils::IA_LList());
+}
+
 void SimpleRender::CreateUniformBuffer()
 {
   VkMemoryRequirements memReq;
@@ -292,7 +359,7 @@ void SimpleRender::UpdateUniformBuffer(float a_time)
 }
 
 void SimpleRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkFramebuffer a_frameBuff,
-                                            VkImageView, VkPipeline a_pipeline)
+                                            VkImageView, VkPipeline a_pipeline, size_t indx)
 {
   vkResetCommandBuffer(a_cmdBuff, 0);
 
@@ -346,6 +413,55 @@ void SimpleRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkFramebu
       auto mesh_info = m_pScnMgr->GetMeshInfo(inst.mesh_id);
       vkCmdDrawIndexed(a_cmdBuff, mesh_info.m_indNum, 1, mesh_info.m_indexOffset, mesh_info.m_vertexOffset, 0);
     }
+
+    vkCmdEndRenderPass(a_cmdBuff);
+  }
+  VkBufferMemoryBarrier barier{.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+                               .pNext = {},
+                               .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                               .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+                               .srcQueueFamilyIndex = {},
+                               .dstQueueFamilyIndex = {},
+                               .buffer = m_pScnMgr->GetPointsBuffer(),
+                               .offset = 0,
+                               .size = VK_WHOLE_SIZE
+                               };
+  vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT,
+                       0, nullptr, 1, &barier, 0, nullptr);
+  {
+    VkRenderPassBeginInfo renderPassInfo = {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = m_pointsRenderPass;
+    renderPassInfo.framebuffer = m_pointsFrameBuffer[indx];
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = m_swapchain.GetExtent();
+
+    // VkClearValue clearValues[2] = {};
+    // clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
+    // clearValues[1].depthStencil = {1.0f, 0};
+    // renderPassInfo.clearValueCount = 2;
+    // renderPassInfo.pClearValues = &clearValues[0];
+
+    vkCmdBeginRenderPass(a_cmdBuff, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pointsPipeline.pipeline);
+
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pointsPipeline.layout, 0, 1,
+                            &m_dSetPoints, 0, VK_NULL_HANDLE);
+
+    VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    // VkDeviceSize zero_offset = 0u;
+    // VkBuffer vertexBuf = m_pScnMgr->GetVertexBuffer();
+    // VkBuffer indexBuf = m_pScnMgr->GetIndexBuffer();
+
+    // vkCmdBindVertexBuffers(a_cmdBuff, 0, 1, &vertexBuf, &zero_offset);
+    // vkCmdBindIndexBuffer(a_cmdBuff, indexBuf, 0, VK_INDEX_TYPE_UINT32);
+
+    // pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
+    vkCmdPushConstants(a_cmdBuff, m_pointsPipeline.layout, stageFlags, 0,
+                        sizeof(pushConst2M), &pushConst2M);
+
+    vkCmdDraw(a_cmdBuff, 10, 1, 0, 0);
 
     vkCmdEndRenderPass(a_cmdBuff);
   }
@@ -463,11 +579,12 @@ void SimpleRender::ProcessInput(const AppInput &input)
 #endif
 
     SetupSimplePipeline();
+    SetupPointsPipeline();
 
     for (uint32_t i = 0; i < m_framesInFlight; ++i)
     {
       BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_frameBuffers[i],
-                               m_swapchain.GetAttachment(i).view, m_basicForwardPipeline.pipeline);
+                               m_swapchain.GetAttachment(i).view, m_basicForwardPipeline.pipeline, i);
     }
   }
 
@@ -526,6 +643,7 @@ void SimpleRender::LoadScene(const char* path)
   CreateUniformBuffer();
 
   SetupSimplePipeline();
+  SetupPointsPipeline();
   SetupQuadDescriptors();
 
 //  auto loadedCam = m_pScnMgr->GetCamera(0);
@@ -553,7 +671,7 @@ void SimpleRender::DrawFrameSimple()
 
   if(m_currentRenderMode == RenderMode::RASTERIZATION)
   {
-    BuildCommandBufferSimple(currentCmdBuf, m_frameBuffers[imageIdx], m_swapchain.GetAttachment(imageIdx).view, m_basicForwardPipeline.pipeline);
+    BuildCommandBufferSimple(currentCmdBuf, m_frameBuffers[imageIdx], m_swapchain.GetAttachment(imageIdx).view, m_basicForwardPipeline.pipeline, imageIdx);
   }
   else if(m_currentRenderMode == RenderMode::RAYTRACING)
   {
@@ -772,7 +890,7 @@ void SimpleRender::DrawFrameWithGUI()
 
   if(m_currentRenderMode == RenderMode::RASTERIZATION)
   {
-    BuildCommandBufferSimple(currentCmdBuf, m_frameBuffers[imageIdx], m_swapchain.GetAttachment(imageIdx).view, m_basicForwardPipeline.pipeline);
+    BuildCommandBufferSimple(currentCmdBuf, m_frameBuffers[imageIdx], m_swapchain.GetAttachment(imageIdx).view, m_basicForwardPipeline.pipeline, imageIdx);
   }
   else if(m_currentRenderMode == RenderMode::RAYTRACING)
   {

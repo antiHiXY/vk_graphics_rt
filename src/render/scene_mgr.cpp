@@ -254,6 +254,13 @@ void SceneManager::InitGeoBuffersGPU(uint32_t a_meshNum, uint32_t a_totalVertNum
   m_matIdsBuf = vk_utils::createBuffer(m_device, matIdsBufSize, flags | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
   all_buffers.push_back(m_matIdsBuf);
 
+  const size_t numberOfPoints = 6;
+  const size_t coordsOfPointsBufferSize = numberOfPoints * 3; 
+
+  SetPointsBuffer(vk_utils::createBuffer(m_device, coordsOfPointsBufferSize * 4, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT));
+  SetPointsMemory(vk_utils::allocateAndBindWithPadding(m_device, m_physDevice, {GetPointsBuffer()}, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR));
+
   VkMemoryAllocateFlags allocFlags {};
   if(m_useRTX)
   {

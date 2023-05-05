@@ -30,7 +30,7 @@ class RayTracer_GPU : public RayTracer_Generated
 public:
   RayTracer_GPU(int32_t a_width, uint32_t a_height) : RayTracer_Generated(a_width, a_height) {} 
   std::string AlterShaderPath(const char* a_shaderPath) override { return std::string("../src/samples/raytracing/") + std::string(a_shaderPath); }
-  void InitDescriptors(std::shared_ptr<SceneManager> sceneManager, VkBuffer a_coordsOfPointsBuffer);
+  void InitDescriptors(std::shared_ptr<SceneManager> sceneManager);
 };
 
 class SimpleRender : public IRender
@@ -98,7 +98,7 @@ protected:
 
   vk_utils::QueueFID_T m_queueFamilyIDXs {UINT32_MAX, UINT32_MAX, UINT32_MAX};
 
-  RenderMode m_currentRenderMode = RenderMode::RASTERIZATION;
+  RenderMode m_currentRenderMode = RenderMode::RAYTRACING;
 
   struct
   {
@@ -125,10 +125,14 @@ protected:
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
 
   pipeline_data_t m_basicForwardPipeline {};
+  pipeline_data_t m_pointsPipeline {};
 
   VkDescriptorSet m_dSet = VK_NULL_HANDLE;
   VkDescriptorSetLayout m_dSetLayout = VK_NULL_HANDLE;
+  VkDescriptorSet m_dSetPoints = VK_NULL_HANDLE;
+  VkDescriptorSetLayout m_dSetPointsLayout = VK_NULL_HANDLE;
   VkRenderPass m_screenRenderPass = VK_NULL_HANDLE; // rasterization renderpass
+  VkRenderPass m_pointsRenderPass = VK_NULL_HANDLE;
 
   LiteMath::float4x4 m_projectionMatrix;
   LiteMath::float4x4 m_inverseProjViewMatrix;
@@ -156,15 +160,14 @@ protected:
   void RayTraceGPU();
 
   VkBuffer m_genColorBuffer = VK_NULL_HANDLE;
-  VkBuffer m_coordsOfPointsBuffer = VK_NULL_HANDLE;
   VkDeviceMemory m_colorMem = VK_NULL_HANDLE;
-  VkDeviceMemory m_coordsOfPointsMem = VK_NULL_HANDLE;
   //
 
   // *** presentation
   VkSurfaceKHR m_surface = VK_NULL_HANDLE;
   VulkanSwapChain m_swapchain;
   std::vector<VkFramebuffer> m_frameBuffers;
+  std::vector<VkFramebuffer> m_pointsFrameBuffer;
   vk_utils::VulkanImageMem m_depthBuffer{};
   // ***
 
@@ -195,7 +198,7 @@ protected:
   void CreateDevice(uint32_t a_deviceId);
 
   void BuildCommandBufferSimple(VkCommandBuffer cmdBuff, VkFramebuffer frameBuff,
-                                VkImageView a_targetImageView, VkPipeline a_pipeline);
+                                VkImageView a_targetImageView, VkPipeline a_pipeline, size_t i);
 
   // *** Ray tracing related stuff
   void BuildCommandBufferQuad(VkCommandBuffer a_cmdBuff, VkImageView a_targetImageView);
@@ -206,6 +209,7 @@ protected:
   // ***************************
 
   void SetupSimplePipeline();
+  void SetupPointsPipeline();
   void CleanupPipelineAndSwapchain();
   void RecreateSwapChain();
 

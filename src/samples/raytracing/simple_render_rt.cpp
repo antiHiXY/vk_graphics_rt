@@ -108,22 +108,22 @@ void SimpleRender::RayTraceGPU()
     m_pRayTracerGPU->InitMemberBuffers();
 
     const size_t bufferSize1 = m_width * m_height * sizeof(uint32_t);
-    const size_t numberOfPoints = 6;
-    const size_t coordsOfPointsBufferSize = numberOfPoints * 3; 
+    // const size_t numberOfPoints = 6;
+    // const size_t coordsOfPointsBufferSize = numberOfPoints * 3; 
 
     m_genColorBuffer = vk_utils::createBuffer(m_device, bufferSize1,  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
     m_colorMem       = vk_utils::allocateAndBindWithPadding(m_device, m_physicalDevice, {m_genColorBuffer});
 
-    m_coordsOfPointsBuffer = vk_utils::createBuffer(m_device, coordsOfPointsBufferSize * 4,  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    m_coordsOfPointsMem = vk_utils::allocateAndBindWithPadding(m_device, m_physicalDevice, {m_coordsOfPointsBuffer});
+    // m_pScnMgr->SetPointsBuffer(vk_utils::createBuffer(m_device, coordsOfPointsBufferSize * 4,  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+    //                                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT));
+    // m_pScnMgr->SetPointsMemory(vk_utils::allocateAndBindWithPadding(m_device, m_physicalDevice, {m_pScnMgr->GetPointsBuffer()}));
 
     auto tmp = std::make_shared<VulkanRTX>(m_pScnMgr);
     tmp->CommitScene();
 
     m_pRayTracerGPU->SetScene(tmp);
     m_pRayTracerGPU->SetVulkanInOutFor_CastSingleRay(m_genColorBuffer, 0);
-    m_pRayTracerGPU->InitDescriptors(m_pScnMgr, m_coordsOfPointsBuffer);
+    m_pRayTracerGPU->InitDescriptors(m_pScnMgr);
     m_pRayTracerGPU->UpdateAll(m_pCopyHelper);
   }
 
