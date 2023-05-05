@@ -267,7 +267,7 @@ void SimpleRender::SetupSimplePipeline()
 
 void SimpleRender::SetupPointsPipeline()
 {
-  m_pBindings->BindBegin(VK_SHADER_STAGE_FRAGMENT_BIT);
+  m_pBindings->BindBegin(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
   m_pBindings->BindBuffer(0, m_ubo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
   m_pBindings->BindBuffer(1, m_pScnMgr->GetPointsBuffer(), VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
   m_pBindings->BindEnd(&m_dSetPoints, &m_dSetPointsLayout);
