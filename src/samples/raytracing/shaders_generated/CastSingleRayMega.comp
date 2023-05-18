@@ -238,19 +238,16 @@ vec2 Hammersley(float i, float numSamples)
 } 
 
 vec3 SampleHemisphere_Uniform(float i, float numSamples)
-{
-    // Returns a 3D sample vector orientated around (0.0, 1.0, 0.0)
-    // For practical use, must rotate with a rotation matrix (or whatever
-    // your preferred approach is) for use with normals, etc.
-    
+{   
 	vec2 xi = Hammersley(i, numSamples);
     
-    float phi      = xi.y * 2.0 * PI;
-    float cosTheta = 1.0 - xi.x;
-    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
-    
-    //return vec3(cos(phi) * sinTheta, cosTheta, sin(phi) * sinTheta);
-     return vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+  float phi      = xi.y * 2.0 * PI;
+  float cosTheta = 1.0 - xi.x;
+  float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+  
+  //return vec3(cos(phi) * sinTheta, cosTheta, sin(phi) * sinTheta);
+  //// z-up
+  return vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
 
 }
 
@@ -262,8 +259,8 @@ vec3 SampleHemisphere_Cosinus(float i, float numSamples)
     float cosTheta = sqrt(1.0 - xi.x);
     float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
      
-    // return vec3(cos(phi) * sinTheta, cosTheta, sin(phi) * sinTheta);
-  return vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+  return vec3(cos(phi) * sinTheta, cosTheta, sin(phi) * sinTheta);
+  //return vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
 
 }
 
@@ -326,7 +323,7 @@ vec3 SampleHemisphere_Boban(vec3 normal, float i)
     if (dot(random_sphere_vector, normal) < 0)
     {
       vec3 proj = dot(random_sphere_vector, normal) * normal;
-     random_sphere_vector = random_sphere_vector - 2 * proj;
+      random_sphere_vector = random_sphere_vector - 2 * proj;
     }
     
     // if (dot(random_sphere_vector, normal) < 0)
@@ -346,29 +343,30 @@ void FirstBounce(vec4 firstHitWorld, uint idx, uint numPoints, vec3 normal, inou
   // debugPrintfEXT("norm_1 is %v3f", normal);
   // debugPrintfEXT("norm_2 is %v3f", b1);
   //debugPrintfEXT("norm_1 is %v3f norm_2 is %v3f norm_3 is %v3f", normal, b1, b2);
-  // vec3 HammersleyVector = SampleHemisphere_Uniform(float(idx), float(numPoints));
-  // vec3 HammersleyVector =  mat3(b1, b2, normal) * SampleHemisphere_Cosinus(float(idx), float(numPoints));
+  //vec3 HammersleyVector = SampleHemisphere_Uniform(float(idx), float(numPoints));
+  vec3 HammersleyVector =  mat3(normal, b2, -b1) * SampleHemisphere_Uniform(float(idx), float(numPoints));
   //HammersleyVector = transpose(mat3(b2, b1, normal)) * HammersleyVector;
-  vec3 HammersleyVector =  mat3(b1, b2, normal)* SampleHemisphere_Boban(normal, float(idx));//mat3(b1, b2, normal) * HammersleyVector;
+  //vec3 RandVector =  mat3(b1, b2, normal)* SampleHemisphere_Boban(normal, float(idx));//mat3(b1, b2, normal) * HammersleyVector;
   //  debugPrintfEXT("Boban vec is %v3f", HammersleyVector);
-  //vec4 randDir = vec4(HammersleyVector, MAXFLOAT);
-  //change rand dir
   vec4 randDir = vec4(HammersleyVector, MAXFLOAT);
+  //change rand dir
+  //vec4 randDir = vec4(RandVector, MAXFLOAT);
   CRT_Hit secondHit = m_pAccelStruct_RayQuery_NearestHit(firstHitWorld, randDir);
   vec4 secondHitWorld = vec4(firstHitWorld.xyz + randDir.xyz*secondHit.t, 1);
-  float len = length(secondHitWorld);
+  //float len = length(secondHitWorld);
   vec3 n = GetNormal(secondHit);
   //n = n / length(n);
   //debugPrintfEXT("n_x %f, n_norm is %f, normal_secondHit is %v3f", n.x, length(n), n);
   // vec3 secondHitNorm = normalize(secondHitWorld.xyz);
   //float angle = dot(n, secondHitNorm);
   vec3 secondHitNorm = normalize(randDir.xyz);
-  float angle = dot(n, secondHitNorm);
+  float first_angle = dot(normal, secondHitNorm);
+  float second_angle = dot(n, secondHitNorm);
   // debugPrintfEXT("ranDir is %v3g, normal_secondHit is %v3g", randDir, n);
 
   // debugPrintfEXT("ranDir is %f", length(randDir.xyz));
   ///result +=  angle ;//* 256.0 / (length(randDir.xyz) );
-  result += 256.0  / secondHit.t;
+  result += first_angle * second_angle * 4096 / (secondHit.t * secondHit.t);
 }
 
 ///////////////////////////////////////////////////////////////// subkernels here
@@ -376,9 +374,9 @@ void kernel_RayTrace_out_color(uint tidX, uint tidY, in vec4 rayPosAndNear, in v
 {
   vec4 rayPos = rayPosAndNear;
   vec4 rayDir = rayDirAndFar;
-  vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+  //vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.0f);
   CRT_Hit hit = m_pAccelStruct_RayQuery_NearestHit(rayPos, rayDir);
-  CRT_Hit hitLight;
+  //CRT_Hit hitLight;
 
   for (int j = 0; j < 1; ++j)
   {
@@ -393,12 +391,12 @@ void kernel_RayTrace_out_color(uint tidX, uint tidY, in vec4 rayPosAndNear, in v
 
     vec3 n = GetNormal(hit);
     ////debugPrintfEXT("norm_1 is %v3f", n);
-    // vec3 lightPos = m_lights[j].pos.xyz;
+    //vec3 lightPos = m_lights[j].pos.xyz;
     // vec3 lightDir = normalize(lightPos - hit_point);
 
     //CHANGE lightpos
-    vec3 lightPos = vec3(0.0f, 0.0f, 0.0f);
-    vec3 lightDir = normalize(lightPos - hit_point);
+    //vec3 lightPos = vec3(0.0f, 0.0f, 0.0f);
+    //vec3 lightDir = normalize(lightPos - hit_point);
 
 
     //vec3 offset = vec3(0.4,0.5,0);
@@ -407,15 +405,15 @@ void kernel_RayTrace_out_color(uint tidX, uint tidY, in vec4 rayPosAndNear, in v
     // color = Shade({hit_point, 1.0}, {lightPos, 1.0}, n, color, 100);
     
     
-    hitLight = m_pAccelStruct_RayQuery_NearestHit(vec4(hit_point, 1.0f), vec4(lightDir, MAXFLOAT));
+    //hitLight = m_pAccelStruct_RayQuery_NearestHit(vec4(hit_point, 1.0f), vec4(lightDir, MAXFLOAT));
    
-    if (hitLight.primId != -1)
-    {
-      float shade = max(dot(n, normalize(lightDir)), 0.1f);
-      color += shade;
-      //CHANGE add color
+    // if (hitLight.primId != -1)
+    // {
+    //   float shade = max(dot(n, normalize(lightDir)), 0.1f);
+    //   color += shade;
+    //   //CHANGE add color
 
-    }
+    // }
     //out_color[tidY * ubo.m_width + tidX + out_colorOffset] = ColorToInt(color);
     int numPoints = 50;
     float result = 0.f;
@@ -431,21 +429,21 @@ void kernel_RayTrace_out_color(uint tidX, uint tidY, in vec4 rayPosAndNear, in v
       
       for (int i = 0; i < numPoints; ++i) 
       {
-        float random_number = mod(sin(gl_GlobalInvocationID[1]) * 1023 + i * 342 , 503)+cos(gl_GlobalInvocationID[1]);
-        FirstBounce(firstHitWorld, uint(random_number), numPoints, n, result);
+        //float random_number = mod(sin(gl_GlobalInvocationID[1]) * 1023 + i * 342 , 503)+cos(gl_GlobalInvocationID[1]);
+        FirstBounce(firstHitWorld, i, numPoints, n, result);
       }
       result /= numPoints;
       //debugPrintfEXT("result is %f", result);
       //uvec4 bytes = uvec4(color * 255.0f);
       //uint result = (bytes.a << 24) | (bytes.b << 16) | (bytes.g << 8) | (bytes.r);
-      float r_scale = 255.0;
-      float r_r = result;
-      float r_g = mod(r_scale  * result,1.0);
-      r_r -= r_g / r_scale;
-      float r_b = mod(result * r_scale * r_scale, 1.0);
-      r_g -= r_b / r_scale;
-      uint r_result =  uint(r_b) << 16 | uint(r_g) << 8 | uint(r_r);
-      out_color[tidY * ubo.m_width + tidX + out_colorOffset] = r_result;
+      // float r_scale = 255.0;
+      // float r_r = result;
+      // float r_g = mod(r_scale  * result,1.0);
+      // r_r -= r_g / r_scale;
+      // float r_b = mod(result * r_scale * r_scale, 1.0);
+      // r_g -= r_b / r_scale;
+      // uint r_result =  uint(r_b) << 16 | uint(r_g) << 8 | uint(r_r);
+      out_color[tidY * ubo.m_width + tidX + out_colorOffset] = uint(result);
       // out_color[tidY * ubo.m_width + tidX + out_colorOffset] = uint(result);
     //}
     // if ((ubo.m_width / 2 == tidX) && (ubo.m_height / 2 == tidY))
