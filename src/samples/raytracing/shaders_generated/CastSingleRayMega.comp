@@ -352,7 +352,13 @@ void FirstBounce(vec4 firstHitWorld, uint idx, uint numPoints, vec3 normal, inou
   //change rand dir
   //vec4 randDir = vec4(RandVector, MAXFLOAT);
   CRT_Hit secondHit = m_pAccelStruct_RayQuery_NearestHit(firstHitWorld, randDir);
+  if (secondHit.primId == -1)
+  { 
+    result += 0.f;
+    return;
+  }
   vec4 secondHitWorld = vec4(firstHitWorld.xyz + randDir.xyz*secondHit.t, 1);
+  
   //float len = length(secondHitWorld);
   vec3 n = GetNormal(secondHit);
   //n = n / length(n);
@@ -362,11 +368,13 @@ void FirstBounce(vec4 firstHitWorld, uint idx, uint numPoints, vec3 normal, inou
   vec3 secondHitNorm = normalize(randDir.xyz);
   float first_angle = dot(normal, secondHitNorm);
   float second_angle = dot(n, secondHitNorm);
+  //if (first_angle < 0.f)  
+    //debugPrintfEXT("error");
   // debugPrintfEXT("ranDir is %v3g, normal_secondHit is %v3g", randDir, n);
 
   // debugPrintfEXT("ranDir is %f", length(randDir.xyz));
   ///result +=  angle ;//* 256.0 / (length(randDir.xyz) );
-  result += first_angle * second_angle * 4096 / (secondHit.t * secondHit.t);
+  result += first_angle * second_angle * 1024 / (secondHit.t * secondHit.t);
 }
 
 ///////////////////////////////////////////////////////////////// subkernels here
@@ -389,7 +397,7 @@ void kernel_RayTrace_out_color(uint tidX, uint tidY, in vec4 rayPosAndNear, in v
     //change hit_point
     //vec3 hit_point = vec3(hit.coords[0],hit.coords[1],hit.coords[2]);
 
-    vec3 n = GetNormal(hit);
+    vec3 n = -GetNormal(hit);   .//// mb without "-"
     ////debugPrintfEXT("norm_1 is %v3f", n);
     //vec3 lightPos = m_lights[j].pos.xyz;
     // vec3 lightDir = normalize(lightPos - hit_point);
